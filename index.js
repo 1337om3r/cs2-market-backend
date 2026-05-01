@@ -9,7 +9,12 @@ let cache = [];
 let lastFetch = 0;
 const CACHE_TTL = 60000;
 
-const QUERIES = ["ak", "awp", "knife", "m4", "glove"];
+const QUERIES = [
+  "AK-47", "AWP", "M4A1-S", "M4A4",
+  "Glock-18", "USP-S", "Desert Eagle",
+  "P250", "MP9", "UMP-45",
+  "Knife", "Karambit", "Butterfly"
+];
 
 const EXCLUDE = ["case", "capsule", "graffiti", "sticker", "key", "pass", "patch"];
 
@@ -19,32 +24,55 @@ function isValidSkin(name) {
 }
 
 async function fetchQuery(query) {
-  const response = await fetch(
-    `https://steamcommunity.com/market/search/render/?appid=730&norender=1&count=100&query=${query}`,
-    {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json"
+  let all = [];
+
+  for (let start = 0; start <= 200; start += 100) {
+    try {
+      const response = await fetch(
+        `https://steamcommunity.com/market/search/render/?appid=730&norender=1&count=100&start=${start}&query=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json",
+            "Referer": "https://steamcommunity.com/market/"
+          }
+        }
+      );
+
+      if (!response.ok) {
+        console.warn(`[${query}] start=${start} → status ${response.status}`);
+        break;
       }
+
+      const data = await response.json();
+      if (!data.results || data.results.length === 0) break;
+
+      const parsed = data.results
+        .filter(item => isValidSkin(item.name))
+        .map(item => ({
+          name: item.name,
+          price: item.sell_price ? item.sell_price / 100 : 0,
+          image:
+            "https://community.cloudflare.steamstatic.com/economy/image/" +
+            item.asset_description.icon_url
+        }));
+
+      all.push(...parsed);
+      console.log(`[${query}] start=${start} → ${parsed.length} skin`);
+
+      // Sonuç 100'den azsa sonraki sayfa yoktur
+      if (data.results.length < 100) break;
+
+      // Rate limit koruması
+      await new Promise(res => setTimeout(res, 500));
+
+    } catch (err) {
+      console.error(`[${query}] start=${start} → hata:`, err.message);
+      break;
     }
-  );
+  }
 
-  if (!response.ok) return [];
-
-  const data = await response.json();
-  if (!data.results) return [];
-
-  return data.results
-    .filter(item => isValidSkin(item.name))
-    .map(item => ({
-      name: item.name,
-      price: item.sell_price_text
-        ? parseFloat(item.sell_price_text.replace(/[^\d.]/g, "")) || 0
-        : 0,
-      image:
-        "https://community.cloudflare.steamstatic.com/economy/image/" +
-        item.asset_description.icon_url
-    }));
+  return all;
 }
 
 app.get("/api/skins", async (req, res) => {
@@ -56,19 +84,22 @@ app.get("/api/skins", async (req, res) => {
 
     console.log("FETCHING from Steam...");
 
-    const results = await Promise.all(QUERIES.map(fetchQuery));
+    // Query'leri sırayla çek (paralel yapınca Steam ban atar)
+    const all = [];
+    for (const query of QUERIES) {
+      const results = await fetchQuery(query);
+      all.push(...results);
+    }
 
-    // Birleştir, duplicate'leri isime göre temizle
+    // Duplicate temizle
     const seen = new Set();
-    const skins = results
-      .flat()
-      .filter(item => {
-        if (seen.has(item.name)) return false;
-        seen.add(item.name);
-        return true;
-      });
+    const skins = all.filter(item => {
+      if (seen.has(item.name)) return false;
+      seen.add(item.name);
+      return true;
+    });
 
-    console.log("TOTAL SKINS:", skins.length);
+    console.log("TOTAL UNIQUE SKINS:", skins.length);
 
     if (skins.length === 0) {
       if (cache.length > 0) {
