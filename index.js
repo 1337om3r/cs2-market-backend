@@ -29,7 +29,6 @@ app.get("/api/skins", async (req, res) => {
     }
 
     const data = await response.json();
-
     console.log("RESULT COUNT:", data.results?.length);
 
     if (!data.results || data.results.length === 0) {
@@ -39,8 +38,10 @@ app.get("/api/skins", async (req, res) => {
     const skins = data.results.map(item => ({
       name: item.name,
       price: item.sell_price_text
-        ? item.sell_price_text.replace("$", "").replace(",", ".")
-        : "0",
+        ? parseFloat(
+            item.sell_price_text.replace(/[^\d.]/g, "")
+          ) || 0
+        : 0,
       image:
         "https://community.cloudflare.steamstatic.com/economy/image/" +
         item.asset_description.icon_url
