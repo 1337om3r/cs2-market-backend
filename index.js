@@ -7,14 +7,23 @@ app.use(cors());
 
 let cache = [];
 let lastFetch = 0;
-const CACHE_TTL = 60000;
+const CACHE_TTL = 5 * 60 * 1000; // 5 dakika
 
 const QUERIES = [
+  // Silahlar
   "ak", "awp", "m4", "usp", "glock",
   "deagle", "p250", "mp9", "mac10",
   "karambit", "bayonet", "butterfly",
   "knife", "glove", "sniper",
-  "rifle", "smg"
+  "rifle", "smg",
+  // Skin isimleri
+  "fade", "doppler", "redline",
+  "dragon", "hyper beast",
+  "vulcan", "asiimov",
+  "neo noir", "printstream",
+  "slaughter", "marble",
+  "tiger", "emerald",
+  "sapphire"
 ];
 
 const EXCLUDE = ["case", "capsule", "graffiti", "sticker", "key", "pass", "patch"];
@@ -72,19 +81,13 @@ async function fetchQuery(query) {
 
       return {
         name: item.name,
-        price: item.sell_price_text
-          ? parseFloat(
-              item.sell_price_text
-                .replace("$", "")
-                .replace(",", "")
-            ) || 0
-          : 0,
+        price: item.sell_price ? item.sell_price / 100 : 0, // ✅ cent → dolar
         image: icon
           ? "https://community.cloudflare.steamstatic.com/economy/image/" + icon
           : ""
       };
     })
-    .filter(item => item.image); // boş görselli skinleri sil
+    .filter(item => item.image);
 }
 
 app.get("/api/skins", async (req, res) => {
@@ -96,7 +99,6 @@ app.get("/api/skins", async (req, res) => {
 
     console.log("Steam'den çekiliyor...");
 
-    // Paralel çek
     const results = await Promise.all(QUERIES.map(fetchQuery));
     const all = results.flat();
 
