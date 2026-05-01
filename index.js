@@ -63,19 +63,28 @@ async function fetchQuery(query) {
 
   return all
     .filter(item => isValidSkin(item.name))
-    .map(item => ({
-      name: item.name,
-      price: item.sell_price_text
-        ? parseFloat(
-            item.sell_price_text
-              .replace("$", "")
-              .replace(",", "")
-          ) || 0
-        : 0,
-      image:
-        "https://community.cloudflare.steamstatic.com/economy/image/" +
-        item.asset_description.icon_url
-    }));
+    .map(item => {
+      const icon =
+        item.asset_description?.icon_url ||
+        item.asset_description?.icon_url_large ||
+        item.icon_url ||
+        "";
+
+      return {
+        name: item.name,
+        price: item.sell_price_text
+          ? parseFloat(
+              item.sell_price_text
+                .replace("$", "")
+                .replace(",", "")
+            ) || 0
+          : 0,
+        image: icon
+          ? "https://community.cloudflare.steamstatic.com/economy/image/" + icon
+          : ""
+      };
+    })
+    .filter(item => item.image); // boş görselli skinleri sil
 }
 
 app.get("/api/skins", async (req, res) => {
@@ -87,11 +96,9 @@ app.get("/api/skins", async (req, res) => {
 
     console.log("Steam'den çekiliyor...");
 
-    const all = [];
-    for (const query of QUERIES) {
-      const results = await fetchQuery(query);
-      all.push(...results);
-    }
+    // Paralel çek
+    const results = await Promise.all(QUERIES.map(fetchQuery));
+    const all = results.flat();
 
     // Duplicate temizle
     const seen = new Set();
