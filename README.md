@@ -1,3 +1,4 @@
+![Açıklama](marketplace.png)
 # ⚙️ CS2 VAULT — Backend API
 
 CS2 VAULT backend, Steam Market üzerinden CS2 skin verilerini çeken ve frontend’e sunan ücretsiz bir API servisidir.
